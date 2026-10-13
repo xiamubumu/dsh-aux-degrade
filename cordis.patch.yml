@@ -1,0 +1,23 @@
+# dsh-aux-degrade — bundle patch
+#
+# 在官方 `llm/stream` 瀑布上给**辅助调用**（压缩摘要 / 会话标题）盖上 reasoningEffort: off。
+#
+# 默认启用：`enabled: true`。
+# 之所以原来默认 false，是怕影响未知环境；现已确认它的病灶是真的
+# （官方压缩的 MAX_TOKENS 失败会**不可逆地丢上下文**），所以默认开。
+#
+# 想关掉：把下面 enabled 改成 false（或在本 profile 的补丁层里覆盖，见
+#   $DSH_HOME/profiles/web/cordis.patch.yml 的 `- id: aux-degrade` 一条）。
+- insert:
+    - id: aux-degrade
+      name: dsh-aux-degrade
+      config:
+        # 总开关。
+        enabled: true
+        # 要降级的调用用途；空数组 = 用插件内置默认
+        # ["compaction", "session-title", "title"]。
+        purposes: []
+        # 只对这些模型 id 生效；空数组 = 不限制模型。
+        models: []
+        # 盖上去的档位。off = 关思考（压缩/标题该有的形态）。
+        effort: off
