@@ -83,6 +83,19 @@ DSH_AUX_MAXTOKENS_FLOOR=0       # 关掉这一项
 
 ---
 
+## 9. 官方补丁提醒：装好就弹一次，指到哪条、怎么打
+
+本插件**必须**打的那条官方补丁（`pi-ai-max-tokens-floor`，改 `@earendil-works/pi-ai` 的 `dist/api/simple-options.js`），由**本插件自己**在界面上弹一次窗告诉你。
+
+为什么它必须打：pi-ai 在上游会把 `max_tokens` 钳到 1，辅助调用（压缩摘要、会话标题）可能只吐一两个字就被截断 —— 摘要没覆盖到的部分真的从上下文里消失。本插件只能在插件层关掉高思考档位并抬起下界，**那个钳位它改不了**（第三方 dist、ESM 命名空间只读）。
+
+- **怎么打（三种，任选一种）**：**A** 点弹窗里的「复制提示词」交给**你自己的 agent**；**B** `node apply.mjs --check` 体检、`node apply.mjs --apply --only pi-ai-max-tokens-floor` 打；**C** 手动 `git apply -p1`；
+- **补丁库**：<https://github.com/xiamubumu/dsh-patch-library>；
+- **检测系统**：按**内容哈希**（`pristine` / `patched`）与 `*.orig` 备份判断；不确定就**明说「无法判定」**，绝不猜「已打」；
+- **打完就不再弹**；「不再提醒」是永久的，而且**按补丁 id 记** —— 将来新增的补丁仍然会提醒。
+
+弹窗还会列出**其余官方补丁**（不绑定本插件，按症状决定打不打），保证一条都不漏。
+
 ## 配置
 
 配置文件是 profile 的 `cordis.patch.yml`：
@@ -134,10 +147,10 @@ dsh plugin --profile web add github:xiamubumu/dsh-aux-degrade
 
 ### 从本地 tarball（离线机器）
 
-去 [Releases](https://github.com/xiamubumu/dsh-aux-degrade/releases) 下载 `dsh-aux-degrade-1.0.0.tgz`，然后：
+去 [Releases](https://github.com/xiamubumu/dsh-aux-degrade/releases) 下载 `dsh-aux-degrade-1.1.0.tgz`，然后：
 
 ```bash
-dsh plugin --profile web add /path/to/dsh-aux-degrade-1.0.0.tgz
+dsh plugin --profile web add /path/to/dsh-aux-degrade-1.1.0.tgz
 ```
 
 ### 从 DSH 插件市场 / npm（暂时还不行）
@@ -146,7 +159,7 @@ dsh plugin --profile web add /path/to/dsh-aux-degrade-1.0.0.tgz
 收录 / 发布之后，市场里直接点安装、或者 `dsh plugin --profile web add dsh-aux-degrade` 才成立。
 
 > ⚠️ **已知问题：不要拿 Release 资产的 tarball URL 直接装。**
-> `dsh plugin --profile web add https://github.com/.../releases/download/v1.0.0/....tgz` 在 DSH 自带的 pnpm 10.34.5 上会失败：
+> `dsh plugin --profile web add https://github.com/.../releases/download/v1.1.0/....tgz` 在 DSH 自带的 pnpm 10.34.5 上会失败：
 > `ERR_PNPM_MISSING_TARBALL_INTEGRITY`（[pnpm#14351](https://github.com/pnpm/pnpm/issues/14351)，上游在 pnpm ≥ 12.5.1 才修好）。
 > 连装第二个插件时**必然**失败 —— 请用上面两条路（`github:` 简写，或先下载 tarball 再用本地路径）。
 

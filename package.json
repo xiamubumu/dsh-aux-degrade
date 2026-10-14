@@ -1,12 +1,19 @@
 {
   "name": "dsh-aux-degrade",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "DSH plugin: stop auxiliary LLM calls from burning the output budget. Degrades reasoning effort for compaction summaries, session titles and prompt enhancement; raises their max_tokens floor; appends verbatim-retention sections to compaction instructions; and strips tools from compaction calls, so a high default thinking level cannot silently truncate a checkpoint.",
   "type": "module",
   "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": {
+      "default": "./lib/client.js"
+    }
+  },
   "files": [
     "index.js",
     "cordis.patch.yml",
+    "lib/client.js",
     "README.md",
     "README.zh-CN.md",
     "tutorial-install-and-official-patches.md",
@@ -19,6 +26,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-settings-plugins",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
     }
   },
   "license": "MIT",

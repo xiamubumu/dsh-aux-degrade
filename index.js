@@ -155,6 +155,276 @@ export function apply(ctx, config = {}) {
       return next()
     }
   })
+
+  /* 官方补丁提醒：本插件需要的那条补丁在 @earendil-works/pi-ai 里，插件层改不了。
+     这里只做三件事 —— 探测「打没打」、落一个「不再提醒」标记、把结论交给自带的
+     客户端半边弹窗。绝不改官方文件，也绝不读别的插件的任何东西。 */
+  installPatchNotice(ctx)
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  官方补丁提醒（服务端半边）
+ *
+ *  为什么必须由本插件自己做：它需要的补丁在 @earendil-works/pi-ai 的 dist 里，
+ *  ESM 命名空间只读 ⇒ 插件层修不了。而本插件是纯服务端插件、没有界面，所以
+ *  「装好之后在界面上说一次」这句话得靠自己带一个极小的客户端半边（lib/client.js）。
+ *  那条半边只读本插件自己的路由，不碰任何别的插件。
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/** 本插件需要的补丁清单（只列**本插件**用的，不列别人需要的）。 */
+const PATCH_NOTICE_TARGETS = [
+  {
+    id: 'pi-ai-max-tokens-floor',
+    title: 'pi-ai max_tokens 下界（FLOOR = 1024）',
+    pkg: '@earendil-works/pi-ai',
+    file: ['dist', 'api', 'simple-options.js'],
+    tier: 'required',
+    whyZh: '官方 pi-ai 会把 max_tokens 钳到 1，辅助调用（压缩摘要、会话标题）可能只吐一两个字就被截断 —— 摘要没覆盖到的部分真的从上下文里消失，而且不可逆。'
+      + '本插件只能在插件层关掉高思考档位并抬起下界，**这个钳位改不了**（第三方 dist、只读命名空间）。',
+    whyEn: 'Upstream pi-ai clamps max_tokens to 1, so auxiliary calls (compaction summaries, session titles) can come back with a character or two — and whatever the summary never covered really does disappear, irreversibly. '
+      + 'This plugin can turn the high thinking level off and raise the floor from the plugin layer, but it cannot change that clamp: the third-party dist exposes a read-only ESM namespace.'
+  }
+]
+
+/** 补丁库（独立开源仓库：10 条自包含补丁 + 自适应应用器 + 五种打法）。 */
+const PATCHLIB_REPO = 'https://github.com/xiamubumu/dsh-patch-library'
+/** 直接下载：永远指向最新 Release 的那个 tgz。 */
+const PATCHLIB_TGZ = PATCHLIB_REPO + '/releases/latest/download/dsh-patch-library-1.0.0.tgz'
+/** 外链白名单：只放作者自己的仓库前缀，绝不做通用 URL 打开器。 */
+/** 权威检测数据：来自补丁库 manifest.json 的 pristine / patched 内容哈希与 marker。 */
+const PATCH_NOTICE_HASHES = {
+  "pi-ai-max-tokens-floor": {
+    "marker": "MAX_TOKENS_FLOOR",
+    "pristine": "1caf860e028e22639578aba3ec8b79e5be9650c27bd3f19471c78502976555f3",
+    "patched": "61262f85ee9da402609aa263b730a2e51351a5e23e42e9706c7afa1a40c5c29e"
+  },
+  "agent-loop-snapshot-prompt": {
+    "marker": "function compareNames(",
+    "pristine": "257eb83c00a05ee068e9f4ba80ca71ab94e3a1275d24b7a0cf5038ff23dd0fd8",
+    "patched": "94be7f52a5f5e5f07dfb3b8f7222644ccd7bf354ab2778c9071d9da89af6eb9b"
+  },
+  "llm-pi-ai-system-prompt": {
+    "marker": "PI_AI_JOIN_PREFIX_SYSTEM",
+    "pristine": "76911a5d9e7aa94ea3e02a3e4507e41c5edc2e5390f50e916b6e06413a1b8dc8",
+    "patched": "31cc5bd444dfbe2c69524a80c2057501de80d5d56db0155a6160537ddbe9bb75"
+  }
+}
+
+const LINK_LOCAL_RE = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/
+
+/** 取 node 内建模块（本文件不额外 import，宿主以极简形式加载）。 */
+function builtin (name) {
+  return typeof process.getBuiltinModule === 'function' ? process.getBuiltinModule(name) : null
+}
+
+/** 本插件的状态目录（只放自己的文件，绝不碰 DSH 配置）。 */
+function patchNoticeStateFile () {
+  const fs = builtin('node:fs')
+  const path = builtin('node:path')
+  if (fs === null || path === null) return null
+  const home = process.env.DSH_HOME
+  const base = typeof home === 'string' && home !== ''
+    ? path.join(home, 'dsh-aux-degrade')
+    : (typeof process.env.APPDATA === 'string' && process.env.APPDATA !== ''
+      ? path.join(process.env.APPDATA, 'dsh-desktop', 'harness', 'dsh-aux-degrade')
+      : null)
+  return base === null ? null : path.join(base, 'patch-notice.json')
+}
+
+/** 读「不再提醒」标记；任何异常都当没关。 */
+/** 读「不再提醒」状态：兼容老的 {dismissed:true}，也支持按补丁 id 记的 {dismissedIds:[…]}。 */
+function readPatchNoticeState () {
+  const fs = builtin('node:fs')
+  const file = patchNoticeStateFile()
+  const empty = { dismissed: false, dismissedIds: [] }
+  if (fs === null || file === null) return empty
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const ids = Array.isArray(raw?.dismissedIds) ? raw.dismissedIds.filter((x) => typeof x === 'string') : []
+    return { dismissed: raw?.dismissed === true, dismissedIds: ids }
+  } catch { return empty }
+}
+
+/** 落「不再提醒」标记；写不了就算了，绝不影响插件其余功能。 */
+function writePatchNoticeState (dismissed, ids) {
+  const fs = builtin('node:fs')
+  const path = builtin('node:path')
+  const file = patchNoticeStateFile()
+  if (fs === null || path === null || file === null) return false
+  try {
+    const prev = readPatchNoticeState()
+    const next = dismissed === true
+      ? { dismissed: true, dismissedIds: Array.isArray(ids) ? ids.slice() : prev.dismissedIds }
+      : { dismissed: false, dismissedIds: [] }
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, JSON.stringify({ ...next, at: new Date().toISOString() }, null, 2) + '\n', 'utf8')
+    return true
+  } catch { return false }
+}
+
+/** 扫描 argv 里所有 `@deepseek-ai/dsh/lib/bin.js` ⇒ 推出安装根。 */
+function patchNoticeDshRoots () {
+  const path = builtin('node:path')
+  if (path === null) return []
+  const out = []
+  const re = /[@\\/]deepseek-ai[\\/]dsh[\\/]lib[\\/]bin\.js$/i
+  for (const arg of process.argv) {
+    if (typeof arg !== 'string' || re.test(arg) !== true) continue
+    const dir = path.dirname(path.dirname(arg))                 /* …/@deepseek-ai/dsh */
+    if (out.includes(dir) !== true) out.push(dir)
+  }
+  return out
+}
+
+/** 某条补丁目标在磁盘上的候选路径（桌面布局与 npm 布局都覆盖）。 */
+function patchNoticeCandidates (target) {
+  const path = builtin('node:path')
+  if (path === null) return []
+  const out = []
+  const [scope, name] = target.pkg.split('/')
+  /* root 是 <X>/@deepseek-ai/dsh；第三方包在同一层作用域目录里，
+     所以是 root/../../<scope>/<name>（早先写成 root/../<name> 漏了作用域，探测不到）。 */
+  for (const root of patchNoticeDshRoots()) {
+    out.push(path.join(root, '..', '..', scope, name === undefined ? scope : name, ...target.file))
+  }
+  return out
+}
+
+/** 探测每条目标：文件在不在 + 旁边有没有 `.orig*` 备份。找不到就如实说不确定。 */
+function detectPatchNoticeItems () {
+  const fs = builtin('node:fs')
+  const crypto = builtin('node:crypto')
+  return PATCH_NOTICE_TARGETS.map((target) => {
+    const known = PATCH_NOTICE_HASHES[target.id] ?? null
+    const out = {
+      id: target.id,
+      title: target.title,
+      pkg: target.pkg,
+      file: target.file.join('/'),
+      tier: target.tier,
+      whyZh: target.whyZh,
+      whyEn: target.whyEn,
+      found: false, verdict: 'unknown', signal: 'none'
+    }
+    if (fs === null || crypto === null) return out
+    for (const candidate of patchNoticeCandidates(target).map((f) => ({ file: f }))) {
+      let text = null
+      try {
+        if (fs.existsSync(candidate.file) !== true) continue
+        text = fs.readFileSync(candidate.file, 'utf8')
+        out.found = true
+      } catch { continue }
+      const sha = crypto.createHash('sha256').update(text, 'utf8').digest('hex')
+      if (known !== null && sha === known.patched) { out.verdict = 'applied'; out.signal = 'sha'; break }
+      if (known !== null && sha === known.pristine) { out.verdict = 'missing'; out.signal = 'sha'; break }
+      if (known !== null && text.includes(known.marker)) { out.verdict = 'applied'; out.signal = 'marker'; break }
+      out.verdict = 'unknown'; out.signal = 'none'
+      break
+    }
+    return out
+  })
+}
+
+/** 读一个小 JSON 请求体。 */
+async function patchNoticeBody (req) {
+  const chunks = []
+  let size = 0
+  try {
+    for await (const chunk of req) {
+      size += chunk.length
+      if (size > 64 * 1024) return null
+      chunks.push(chunk)
+    }
+    const text = Buffer.concat(chunks).toString('utf8')
+    return text === '' ? null : JSON.parse(text)
+  } catch { return null }
+}
+
+/** 把本插件的补丁状态与操作挂到宿主 webServer 上（拿不到就静默跳过）。 */
+function installPatchNotice (ctx, viaInject) {
+  const webserver = ctx.get?.('webServer')
+  /* webServer 刻意**不**写进 inject：cordis 里声明什么就是必需，真声明了在
+     没有 web 服务的部署里会把整个插件停掉。这里改用 ctx.inject([...]) 的
+     可选形态 —— 拿得到才注册路由，拿不到就只是没有弹窗，其余功能照旧。 */
+  if ((webserver === undefined || webserver === null) && viaInject !== true && typeof ctx.inject === 'function') {
+    try {
+      ctx.inject(['webServer'], (sub) => { try { installPatchNotice(sub, true) } catch { /* ignore */ } })
+      return
+    } catch { /* 落到下面的诊断 */ }
+  }
+  if (webserver === undefined || webserver === null) {
+    try { console.error('[aux-degrade/patch-notice] webServer 拿不到 ⇒ 不注册路由') } catch { /* ignore */ }
+    return
+  }
+  const path = builtin('node:path')
+  const childProcess = builtin('node:child_process')
+  const handler = async (req, res) => {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+    const send = (status, body) => {
+      try {
+        res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+        res.end(JSON.stringify(body))
+      } catch { /* ignore */ }
+    }
+    if (url.pathname === '/dsh-aux-degrade/patch-notice' && req.method === 'GET') {
+      const state = readPatchNoticeState()
+      send(200, {
+        ok: true,
+        plugin: 'dsh-aux-degrade',
+        dismissed: state.dismissed,
+        dismissedIds: state.dismissedIds,
+        patchLibrary: PATCHLIB_REPO,
+        download: PATCHLIB_TGZ,
+        stateFile: patchNoticeStateFile(),
+        others: [],
+        items: detectPatchNoticeItems()
+      })
+      return
+    }
+    if (url.pathname === '/dsh-aux-degrade/patch-notice/dismiss' && req.method === 'POST') {
+      const body = await patchNoticeBody(req)
+      const ok = writePatchNoticeState(body?.dismissed === true, body?.ids)
+      send(200, { ok })
+      return
+    }
+    if (url.pathname === '/dsh-aux-degrade/patch-notice/open' && req.method === 'POST') {
+      /* 同源闸：带了 Origin 又不是本机来源的，一律拒绝（防网页 CSRF 打开浏览器）。 */
+      const origin = req.headers?.origin
+      if (typeof origin === 'string' && origin !== '' && LINK_LOCAL_RE.test(origin) !== true) {
+        send(200, { ok: false, error: '跨源请求被拒绝' })
+        return
+      }
+      const body = await patchNoticeBody(req)
+      const target = typeof body?.url === 'string' ? body.url : ''
+      /* 只认两个写死的地址 —— 不做前缀匹配，也不把它交给 shell 去拼。 */
+      if (target !== PATCHLIB_REPO && target !== PATCHLIB_TGZ) {
+        send(200, { ok: false, error: '不在白名单里的链接' })
+        return
+      }
+      /* 用系统默认浏览器打开（Windows 走 cmd start，其余平台走平台 opener）。 */
+      try {
+        if (process.platform === 'win32') {
+          const child = childProcess.spawn('cmd', ['/c', 'start', '', target], { detached: true, stdio: 'ignore' })
+          child.unref()
+        } else if (process.platform === 'darwin') {
+          childProcess.spawn('open', [target], { detached: true, stdio: 'ignore' }).unref()
+        } else {
+          childProcess.spawn('xdg-open', [target], { detached: true, stdio: 'ignore' }).unref()
+        }
+        send(200, { ok: true, url: target })
+      } catch (error) {
+        send(200, { ok: false, url: target, error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    void path
+    send(404, { ok: false, error: 'not found' })
+  }
+  ctx.effect(() => webserver.register({
+    kind: 'prefix',
+    path: '/dsh-aux-degrade',
+    handler: (req, res) => handler(req, res)
+  }), 'dsh-aux-degrade: patch notice routes')
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

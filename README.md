@@ -83,6 +83,19 @@ Whenever any of #2–#4 acts, one line is printed:
 
 ---
 
+## 9. The official-patch notice: one dialog, naming the patch and how to apply it
+
+The one official patch this plugin **requires** (`pi-ai-max-tokens-floor`, editing `dist/api/simple-options.js` inside `@earendil-works/pi-ai`) is announced by **this plugin itself**, in one dialog.
+
+Why it is required: upstream pi-ai clamps `max_tokens` to 1, so auxiliary calls (compaction summaries, session titles) can come back with one or two characters — and whatever the summary never covered really does disappear from the context. This plugin can turn the high thinking level off and raise the floor from the plugin layer, but **it cannot change that clamp** (the third-party dist exposes a read-only ESM namespace).
+
+- **How to apply it (any one of three)**: **A** press "Copy the prompt" and hand it to **your own agent**; **B** `node apply.mjs --check`, then `node apply.mjs --apply --only pi-ai-max-tokens-floor`; **C** apply by hand with `git apply -p1`;
+- **The patch library**: <https://github.com/xiamubumu/dsh-patch-library>;
+- **Detection**: a **content hash** (`pristine` / `patched`) plus the `*.orig` backup; when it cannot decide it says **"cannot tell"** and never guesses "applied";
+- **Once applied, it stops appearing**; "Do not remind me again" is permanent and recorded **per patch id**, so a patch added later is still announced.
+
+The dialog also lists **the other official patches** (owned by no plugin), so nothing goes unseen.
+
 ## Configuration
 
 The configuration file is the profile's `cordis.patch.yml`:
@@ -134,10 +147,10 @@ One command. DSH registers it into the profile's `dsh.profile.bundles` by itself
 
 ### From a local tarball (air-gapped machines)
 
-Download `dsh-aux-degrade-1.0.0.tgz` from [Releases](https://github.com/xiamubumu/dsh-aux-degrade/releases), then:
+Download `dsh-aux-degrade-1.1.0.tgz` from [Releases](https://github.com/xiamubumu/dsh-aux-degrade/releases), then:
 
 ```bash
-dsh plugin --profile web add /path/to/dsh-aux-degrade-1.0.0.tgz
+dsh plugin --profile web add /path/to/dsh-aux-degrade-1.1.0.tgz
 ```
 
 ### From the DSH plugin marketplace / npm (not yet possible)
@@ -146,7 +159,7 @@ The marketplace submission (an `awesome-dsh-plugin` PR) has not been filed and n
 Once it is listed/published, installing from the marketplace, or `dsh plugin --profile web add dsh-aux-degrade`, becomes valid.
 
 > ⚠️ **Known issue: do not feed the release asset's tarball URL to `dsh plugin add`.**
-> `dsh plugin --profile web add https://github.com/.../releases/download/v1.0.0/....tgz` fails on the pnpm DSH bundles (10.34.5) with
+> `dsh plugin --profile web add https://github.com/.../releases/download/v1.1.0/....tgz` fails on the pnpm DSH bundles (10.34.5) with
 > `ERR_PNPM_MISSING_TARBALL_INTEGRITY` ([pnpm#14351](https://github.com/pnpm/pnpm/issues/14351), fixed upstream only in pnpm ≥ 12.5.1).
 > Installing a second plugin that way **always** fails — use the two routes above instead.
 
