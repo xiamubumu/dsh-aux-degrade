@@ -117,8 +117,8 @@ DSH_AUX_MAXTOKENS_FLOOR=0       # 关掉这一项
 
 | 文档 | 讲什么 |
 |---|---|
-| [安装与官方补丁（中文）](tutorial-install-and-official-patches.zh-CN.md) | 四个插件怎么一起装（两条实测路线），官方补丁要不要打、怎么让**你自己的 agent** 去打 |
-| [Install & official patches (English)](tutorial-install-and-official-patches.md) | the same, in English |
+| [安装与官方补丁（中文）](tutorial-install-and-official-patches.zh-CN.md) | 四个插件怎么一起装（两条实测路线），官方补丁要不要打、怎么让**你自己的 agent** 去打 补丁本体已开源成补丁库：<https://github.com/xiamubumu/dsh-patch-library>  |
+| [Install & official patches (English)](tutorial-install-and-official-patches.md) | the same, in English the patches themselves ship as a library: <https://github.com/xiamubumu/dsh-patch-library>  |
 
 ---
 
