@@ -2,6 +2,8 @@
 
 # dsh-aux-degrade
 
+> ⚠️ **只支持 DSH 1.5**（`>=0.1.5-rc.2 <0.2.0`）。DSH 出新版本会跟进更新。
+
 **给压缩、标题这类辅助调用关掉思考，别让推理吃光输出预算。**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)

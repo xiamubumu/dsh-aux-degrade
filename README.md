@@ -2,6 +2,8 @@
 
 # dsh-aux-degrade
 
+> ⚠️ **DSH 1.5 only** (`>=0.1.5-rc.2 <0.2.0`). Newer DSH releases will be supported in follow-up updates.
+
 **Turn off reasoning for auxiliary calls like compaction and titles — don't let inference eat the whole output budget.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
