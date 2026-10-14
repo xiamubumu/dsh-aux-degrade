@@ -113,6 +113,15 @@ DSH_AUX_MAXTOKENS_FLOOR=0       # 关掉这一项
 
 ---
 
+## 📚 教程
+
+| 文档 | 讲什么 |
+|---|---|
+| [安装与官方补丁（中文）](tutorial-install-and-official-patches.zh-CN.md) | 四个插件怎么一起装（两条实测路线），官方补丁要不要打、怎么让**你自己的 agent** 去打 |
+| [Install & official patches (English)](tutorial-install-and-official-patches.md) | the same, in English |
+
+---
+
 ## 安装
 
 ### 从 GitHub（推荐，已在全新 `DSH_HOME` 上实测）

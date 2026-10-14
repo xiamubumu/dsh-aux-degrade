@@ -113,6 +113,15 @@ Because when it initiates a call it **does not pass `purpose`** — the "by purp
 
 ---
 
+## 📚 Tutorials
+
+| Document | What it covers |
+|---|---|
+| [Install & official patches (English)](tutorial-install-and-official-patches.md) | How to install all four plugins (two verified routes) and what to do about the official patches — including prompts that let **your own agent** apply them |
+| [安装与官方补丁（中文）](tutorial-install-and-official-patches.zh-CN.md) | the same, in Chinese |
+
+---
+
 ## Installation
 
 ### From GitHub (recommended; measured on a fresh `DSH_HOME`)

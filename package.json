@@ -8,7 +8,9 @@
     "index.js",
     "cordis.patch.yml",
     "README.md",
-    "README.zh-CN.md"
+    "README.zh-CN.md",
+    "tutorial-install-and-official-patches.md",
+    "tutorial-install-and-official-patches.zh-CN.md"
   ],
   "peerDependencies": {
     "@deepseek-ai/schemastery": ">=3.18.0 <4.0.0-0",
