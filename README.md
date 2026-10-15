@@ -6,6 +6,8 @@
 
 > ⚠️ **DSH 1.5 only** (`>=0.1.5-rc.2 <0.2.0`). Newer DSH releases will be supported in follow-up updates.
 
+> 🟢 **Collision risk: very low.** It occupies **one server-side seam (`llm/stream`) and no client slot** — only **4** plugins here share that seam, and it touches **auxiliary calls only** (compaction summaries, session titles), never the main conversation request. See [Compatibility](#compatibility).
+
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![DSH](https://img.shields.io/badge/DSH-1.5-8a2be2.svg)](#compatibility)

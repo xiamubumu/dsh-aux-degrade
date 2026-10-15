@@ -6,6 +6,8 @@
 
 > ⚠️ **只支持 DSH 1.5**（`>=0.1.5-rc.2 <0.2.0`）。DSH 出新版本会跟进更新。
 
+> 🟢 **冲突概率极低。** 本插件只占 **1 个服务端接缝（`llm/stream`）、0 个客户端槽位** —— 实测只有 **4 个**插件与它共享接缝,且它**只碰辅助调用**（压缩摘要、会话标题）,不动主对话请求。详见下方[兼容性](#兼容性)。
+
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![DSH](https://img.shields.io/badge/DSH-1.5-8a2be2.svg)](#兼容性)
